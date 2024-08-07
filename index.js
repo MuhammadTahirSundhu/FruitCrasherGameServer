@@ -3,12 +3,16 @@ const bodyParser = require('body-parser');
 const { Telegraf } = require('telegraf');
 
 const app = express();
-const TELEGRAM_BOT_TOKEN = "7286576213:AAFGoW-q__f4SYLSCnwk4e0CHJ0LP5QlFIs"; // Use environment variables for sensitive data
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
-const GAME_URL = "https://fruit-catchers.vercel.app/"; // Use environment variables for URLs
-const GAME_SHORT_NAME = 'FruitCatcher'; // Ensure this matches the short name set up in BotFather
+const GAME_URL = process.env.GAME_URL;
+const GAME_SHORT_NAME = 'FruitCatcher';
 
 app.use(bodyParser.json());
+
+app.get('/', (req, res) => {
+    res.send('Server is running');
+});
 
 app.post('/webhook', async (req, res) => {
     console.log('Received request:', req.body);
@@ -31,7 +35,6 @@ app.post('/webhook', async (req, res) => {
             await answerInlineQuery(queryId);
         } else if (callback_query) {
             const chatId = callback_query.message.chat.id;
-            const messageId = callback_query.message.message_id;
             if (callback_query.data === 'play_fruit_catcher') {
                 await sendGame(chatId);
             } else if (callback_query.data === 'help') {
@@ -125,7 +128,6 @@ async function answerInlineQuery(queryId) {
     }
 }
 
-// Initialize bot and set webhook
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 bot.start((ctx) => ctx.reply('Welcome to the game! Type /play to start playing.'));
@@ -155,7 +157,6 @@ bot.on('callback_query', async (ctx) => {
         const data = ctx.callbackQuery.data;
         if (ctx.callbackQuery.message) {
             const chatId = ctx.callbackQuery.message.chat.id;
-            const messageId = ctx.callbackQuery.message.message_id;
 
             if (data === 'help') {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
@@ -165,10 +166,7 @@ bot.on('callback_query', async (ctx) => {
                 console.log('Callback query received:', data);
             }
         } else if (ctx.callbackQuery.inline_message_id) {
-            const inlineMessageId = ctx.callbackQuery.inline_message_id;
-            console.log('Inline message callback query received:', inlineMessageId);
-
-            // Launch the game by providing the game URL
+            console.log('Inline message callback query received:', ctx.callbackQuery.inline_message_id);
             try {
                 await ctx.answerCbQuery('', { url: GAME_URL });
             } catch (error) {
@@ -188,37 +186,6 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
 
-async function updateWebhook(url) {
-    try {
-        const fetch = (await import('node-fetch')).default;
-
-        const response = await fetch(`${TELEGRAM_API_URL}/setWebhook`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url: url
-            })
-        });
-
-        if (!response.ok) {
-            console.error('Failed to set webhook:', response.statusText);
-        }
-    } catch (error) {
-        console.error('Error setting webhook:', error);
-    }
-}
-
-// Launch bot and set the webhook URL
 bot.launch().then(() => {
     console.log('Bot launched successfully');
-    // Update webhook with the local tunnel URL or deployment URL here
-    exec('lt --port 3000', (error, stdout, stderr) => {
-        if (error) {
-            console.error('Error starting LocalTunnel:', error);
-            return;
-        }
-        console.log('LocalTunnel URL:', stdout);
-        const url = stdout.trim();
-        updateWebhook(`${url}/webhook`);
-    });
 });
