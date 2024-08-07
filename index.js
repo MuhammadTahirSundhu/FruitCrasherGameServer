@@ -188,4 +188,9 @@ app.listen(PORT, () => {
 
 bot.launch().then(() => {
     console.log('Bot launched successfully');
+    // Replace 'https://your-vercel-url.vercel.app' with your actual Vercel URL
+    const vercelUrl = 'https://fruit-crasher-game-server-fmyq44i45.vercel.app/';
+    updateWebhook(`${vercelUrl}/webhook`);
+}).catch(error => {
+    console.error('Error launching bot:', error);
 });
