@@ -12,20 +12,8 @@ const GAME1_SHORT_NAME = 'FruitCatcher';
 const GAME2_SHORT_NAME = 'EndlessRunner';
 const GAME3_SHORT_NAME = 'CardMatcher';
 
-app.use(bodyParser.json());  
+app.use(bodyParser.json());
 
-// Removed MongoDB connection and schema
-
-// Placeholder functions for scores (no database)
-async function getTopScores() {
-    return []; // Return empty list as placeholder
-}
-
-async function saveScore(username, score) {
-    console.log(`Saving score: ${username} - ${score}`); // Placeholder
-}
-
-// Commands and webhooks
 app.get('/', (req, res) => {
     res.send('Server is running');
 });
@@ -43,13 +31,6 @@ app.post('/webhook', async (req, res) => {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
             } else if (text === '/play') {
                 await sendGame(chatId, GAME1_SHORT_NAME); // Default to Game1
-            } else if (text === '/score') {
-                const topScores = await getTopScores();
-                let scoreMessage = 'Top 10 Scores:\n';
-                topScores.forEach((score, index) => {
-                    scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
-                });
-                await sendMessage(chatId, scoreMessage || 'No scores available.');
             } else {
                 await sendMessage(chatId, 'Unknown command. Type /start to begin.');
             }
@@ -62,7 +43,7 @@ app.post('/webhook', async (req, res) => {
                 await sendGame(chatId, GAME1_SHORT_NAME);
             } else if (callback_query.data === 'play_endless_runner') {
                 await sendGame(chatId, GAME2_SHORT_NAME);
-            } else if (callback_query.data === 'play_card_matcher') {
+            }else if (callback_query.data === 'play_card_matcher') {
                 await sendGame(chatId, GAME3_SHORT_NAME);
             } else if (callback_query.data === 'help') {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
@@ -77,7 +58,6 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
 });
 
-// Utility functions to send messages, games, etc.
 async function sendMessage(chatId, text) {
     try {
         const fetch = (await import('node-fetch')).default;
@@ -97,9 +77,7 @@ async function sendMessage(chatId, text) {
     } catch (error) {
         console.error('Error sending message:', error);
     }
-}
-
-async function sendGame(chatId, gameShortName) {
+}async function sendGame(chatId, gameShortName) {
     try {
         const fetch = (await import('node-fetch')).default;
 
@@ -153,21 +131,38 @@ async function sendGame(chatId, gameShortName) {
     }
 }
 
-// Bot logic for Telegraf commands
+async function answerInlineQuery(queryId, gameShortName) {
+    try {
+        const fetch = (await import('node-fetch')).default;
+
+        const response = await fetch(`${TELEGRAM_API_URL}/answerInlineQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                inline_query_id: queryId,
+                results: [
+                    {
+                        type: 'game',
+                        id: 'unique_game_id',
+                        game_short_name: gameShortName
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Failed to answer inline query:', response.statusText);
+        }
+    } catch (error) {
+        console.error('Error answering inline query:', error);
+    }
+}
+
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 bot.start((ctx) => ctx.reply('Welcome to the game! Type /play to start playing.'));
 bot.command('play', async (ctx) => {
     await sendGame(ctx.chat.id, GAME1_SHORT_NAME); // Default to Game1
-});
-
-bot.command('score', async (ctx) => {
-    const topScores = await getTopScores();
-    let scoreMessage = 'Top 10 Scores:\n';
-    topScores.forEach((score, index) => {
-        scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
-    });
-    await ctx.reply(scoreMessage || 'No scores available.');
 });
 
 bot.on('inline_query', async (ctx) => {
@@ -205,22 +200,44 @@ bot.on('callback_query', async (ctx) => {
             } else {
                 console.log('Callback query received:', data);
             }
+        } else if (ctx.callbackQuery.inline_message_id) {
+            console.log('Inline message callback query received:', ctx.callbackQuery.inline_message_id);
+            console.log('Inline message callback query received:', ctx.callbackQuery.inline_message_id);
+
+            try {
+                await ctx.answerCbQuery('', { url: ctx.callbackQuery.game_short_name === GAME1_SHORT_NAME ? Game1_URL : ctx.callbackQuery.game_short_name === GAME2_SHORT_NAME ? Game2_URL : Game3_URL });
+                await ctx.answerCbQuery('Action performed successfully!', { show_alert: true });
+
+            } catch (error) {
+                console.error('Error answering callback query:', error);
+            }
+        } else {
+            console.error('Unhandled callback query type:', ctx.callbackQuery);
         }
     } catch (error) {
         console.error('Error handling callback query:', error);
     }
 });
 
-bot.launch();
-// Keep-alive ping to prevent Render service timeout
+const PORT = process.env.PORT || 3001 || 3000;
+
 setInterval(() => {
     console.log('Keeping server alive');
     // This will ping your root URL to keep the server alive
     fetch('https://fruitcrashergameserver.onrender.com').catch((error) => console.error('Error pinging server:', error));
 }, 5 * 60 * 1000); // Ping every 5 minutes
 
-// Server setup
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
+
+bot.launch().then(() => {
+    console.log('Bot launched successfully');
+    const vercelUrl = 'https://fruit-crasher-game-server-fmyq44i45.vercel.app/';
+    updateWebhook(`${vercelUrl}/webhook`);
+}).catch(error => {
+    console.error('Error launching bot:', error);
+});
+
+
+// Keep-alive ping to prevent Render service timeout
