@@ -219,3 +219,7 @@ async function updateWebhook(url) {
         console.error('Error setting webhook:', error);
     }
 }
+// Ping to keep the server alive
+setInterval(() => {
+    fetch(VERCEL_URL).catch((error) => console.error('Error pinging server:', error));
+}, 2 * 60 * 1000); // Ping every 5 minutes
