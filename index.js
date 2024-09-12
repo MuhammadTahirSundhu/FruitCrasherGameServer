@@ -1,8 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 const { Telegraf } = require('telegraf');
-const fetch = require('node-fetch');
-const localtunnel = require('localtunnel');
 
 const app = express();
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '7286576213:AAFGoW-q__f4SYLSCnwk4e0CHJ0LP5QlFIs';
@@ -14,8 +13,34 @@ const GAME1_SHORT_NAME = 'FruitCatcher';
 const GAME2_SHORT_NAME = 'EndlessRunner';
 const GAME3_SHORT_NAME = 'CardMatcher';
 
-app.use(bodyParser.json());
+app.use(bodyParser.json());  
 
+// MongoDB connection setup
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/telegram_game_bot';
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// Score schema and model
+const scoreSchema = new mongoose.Schema({
+    username: String,
+    score: Number
+}, { timestamps: true });
+
+const Score = mongoose.model('Score', scoreSchema);
+
+// Get top 10 scores
+async function getTopScores() {
+    return await Score.find().sort({ score: -1 }).limit(10);
+}
+
+// Save a player's score
+async function saveScore(username, score) {
+    const playerScore = new Score({ username, score });
+    await playerScore.save();
+}
+
+// Commands and webhooks
 app.get('/', (req, res) => {
     res.send('Server is running');
 });
@@ -33,6 +58,13 @@ app.post('/webhook', async (req, res) => {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
             } else if (text === '/play') {
                 await sendGame(chatId, GAME1_SHORT_NAME); // Default to Game1
+            } else if (text === '/score') {
+                const topScores = await getTopScores();
+                let scoreMessage = 'Top 10 Scores:\n';
+                topScores.forEach((score, index) => {
+                    scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
+                });
+                await sendMessage(chatId, scoreMessage || 'No scores available.');
             } else {
                 await sendMessage(chatId, 'Unknown command. Type /start to begin.');
             }
@@ -41,7 +73,17 @@ app.post('/webhook', async (req, res) => {
             await answerInlineQuery(queryId, GAME1_SHORT_NAME); // Default to Game1
         } else if (callback_query) {
             const chatId = callback_query.message.chat.id;
-            handleCallbackQuery(callback_query, chatId);
+            if (callback_query.data === 'play_fruit_catcher') {
+                await sendGame(chatId, GAME1_SHORT_NAME);
+            } else if (callback_query.data === 'play_endless_runner') {
+                await sendGame(chatId, GAME2_SHORT_NAME);
+            } else if (callback_query.data === 'play_card_matcher') {
+                await sendGame(chatId, GAME3_SHORT_NAME);
+            } else if (callback_query.data === 'help') {
+                await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
+            } else {
+                console.log('Callback query received:', callback_query.data);
+            }
         }
     } catch (error) {
         console.error('Error processing request:', error);
@@ -50,8 +92,11 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
 });
 
+// Utility functions to send messages, games, etc.
 async function sendMessage(chatId, text) {
     try {
+        const fetch = (await import('node-fetch')).default;
+
         const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -71,7 +116,31 @@ async function sendMessage(chatId, text) {
 
 async function sendGame(chatId, gameShortName) {
     try {
-        let inlineKeyboard = createGameKeyboard(gameShortName);
+        const fetch = (await import('node-fetch')).default;
+
+        let inlineKeyboard;
+        if (gameShortName === GAME1_SHORT_NAME) {
+            inlineKeyboard = [
+                [{ text: 'Play Fruit Catcher', callback_game: {} }],
+                [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
+                [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
+                [{ text: 'Help', callback_data: 'help' }]
+            ];
+        } else if (gameShortName === GAME2_SHORT_NAME) {
+            inlineKeyboard = [
+                [{ text: 'Play Endless Runner', callback_game: {} }],
+                [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
+                [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
+                [{ text: 'Help', callback_data: 'help' }]
+            ];
+        } else if (gameShortName === GAME3_SHORT_NAME) {
+            inlineKeyboard = [
+                [{ text: 'Play Card Matcher', callback_game: {} }],
+                [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
+                [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
+                [{ text: 'Help', callback_data: 'help' }]
+            ];
+        }
 
         const payload = {
             chat_id: chatId,
@@ -99,81 +168,21 @@ async function sendGame(chatId, gameShortName) {
     }
 }
 
-function createGameKeyboard(gameShortName) {
-    if (gameShortName === GAME1_SHORT_NAME) {
-        return [
-            [{ text: 'Play Fruit Catcher', callback_game: {} }],
-            [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
-            [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
-            [{ text: 'Help', callback_data: 'help' }]
-        ];
-    } else if (gameShortName === GAME2_SHORT_NAME) {
-        return [
-            [{ text: 'Play Endless Runner', callback_game: {} }],
-            [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
-            [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
-            [{ text: 'Help', callback_data: 'help' }]
-        ];
-    } else {
-        return [
-            [{ text: 'Play Card Matcher', callback_game: {} }],
-            [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
-            [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
-            [{ text: 'Help', callback_data: 'help' }]
-        ];
-    }
-}
-
-async function answerInlineQuery(queryId, gameShortName) {
-    try {
-        const response = await fetch(`${TELEGRAM_API_URL}/answerInlineQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                inline_query_id: queryId,
-                results: [
-                    {
-                        type: 'game',
-                        id: 'unique_game_id',
-                        game_short_name: gameShortName
-                    }
-                ]
-            })
-        });
-
-        if (!response.ok) {
-            console.error('Failed to answer inline query:', response.statusText);
-        }
-    } catch (error) {
-        console.error('Error answering inline query:', error);
-    }
-}
-
-async function handleCallbackQuery(callback_query, chatId) {
-    const data = callback_query.data;
-
-    try {
-        if (data === 'help') {
-            await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
-        } else if (data === 'play_fruit_catcher') {
-            await sendGame(chatId, GAME1_SHORT_NAME);
-        } else if (data === 'play_endless_runner') {
-            await sendGame(chatId, GAME2_SHORT_NAME);
-        } else if (data === 'play_card_matcher') {
-            await sendGame(chatId, GAME3_SHORT_NAME);
-        } else {
-            console.log('Callback query received:', data);
-        }
-    } catch (error) {
-        console.error('Error handling callback query:', error);
-    }
-}
-
+// Bot logic for Telegraf commands
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 bot.start((ctx) => ctx.reply('Welcome to the game! Type /play to start playing.'));
 bot.command('play', async (ctx) => {
     await sendGame(ctx.chat.id, GAME1_SHORT_NAME); // Default to Game1
+});
+
+bot.command('score', async (ctx) => {
+    const topScores = await getTopScores();
+    let scoreMessage = 'Top 10 Scores:\n';
+    topScores.forEach((score, index) => {
+        scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
+    });
+    await ctx.reply(scoreMessage || 'No scores available.');
 });
 
 bot.on('inline_query', async (ctx) => {
@@ -194,47 +203,35 @@ bot.on('inline_query', async (ctx) => {
 });
 
 bot.on('callback_query', async (ctx) => {
-    const chatId = ctx.callbackQuery.message.chat.id;
-    await handleCallbackQuery(ctx.callbackQuery, chatId);
-});
-
-const PORT = process.env.PORT || 3001;
-
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
-
-bot.launch().then(async () => {
-    console.log('Bot launched successfully');
-
-    // Use LocalTunnel to expose the server to the internet if not in production
-    if (!process.env.RENDER_EXTERNAL_URL) {
-        const tunnel = await localtunnel({ port: PORT });
-        console.log(`Tunnel running at ${tunnel.url}`);
-        updateWebhook(`${tunnel.url}/webhook`);
-    } else {
-        updateWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
-    }
-}).catch(error => {
-    console.error('Error launching bot:', error);
-});
-
-async function updateWebhook(webhookUrl) {
     try {
-        const response = await fetch(`${TELEGRAM_API_URL}/setWebhook`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url: webhookUrl
-            })
-        });
+        const data = ctx.callbackQuery.data;
+        
+        if (ctx.callbackQuery.message) {
+            const chatId = ctx.callbackQuery.message.chat.id;
 
-        if (!response.ok) {
-            console.error('Failed to set webhook:', await response.text());
-        } else {
-            console.log('Webhook set successfully');
+            if (data === 'help') {
+                await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
+            } else if (data === 'play_fruit_catcher') {
+                await sendGame(chatId, GAME1_SHORT_NAME);
+            } else if (data === 'play_endless_runner') {
+                await sendGame(chatId, GAME2_SHORT_NAME);
+            } else if (data === 'play_card_matcher') {
+                await sendGame(chatId, GAME3_SHORT_NAME);
+            } else {
+                console.log('Callback query received:', data);
+            }
         }
     } catch (error) {
-        console.error('Error setting webhook:', error);
+        console.error('Error handling callback query:', error);
     }
-}
+});
+
+bot.launch();
+
+// Server setup
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+
