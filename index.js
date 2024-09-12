@@ -215,5 +215,7 @@ async function updateWebhook(url) {
 
 // Ping to keep the server alive
 setInterval(() => {
-    fetch('https://fruitcrashergameserver.onrender.com').catch((error) => console.error('Error pinging server:', error));
-}, 2 * 60 * 1000); // Ping every 2 minutes
+    fetch('https://fruitcrashergameserver.onrender.com')
+    .then(() => console.log("Ping occurred!"))
+    .catch((error) => console.error('Error pinging server:', error));
+}, 1 * 60 * 1000); // Ping every 2 minutes
