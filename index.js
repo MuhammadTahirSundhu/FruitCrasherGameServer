@@ -7,8 +7,10 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '7286576213:AAFGoW-
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 const Game1_URL = process.env.Game1_URL || "https://fruit-catchers.vercel.app/";
 const Game2_URL = process.env.Game2_URL || "https://endless-runner-rust.vercel.app/";
+const Game3_URL = process.env.Game3_URL || "https://card-matching-eight.vercel.app/";
 const GAME1_SHORT_NAME = 'FruitCatcher';
 const GAME2_SHORT_NAME = 'EndlessRunner';
+const GAME3_SHORT_NAME = 'CardMatcher';
 
 app.use(bodyParser.json());
 
@@ -41,6 +43,8 @@ app.post('/webhook', async (req, res) => {
                 await sendGame(chatId, GAME1_SHORT_NAME);
             } else if (callback_query.data === 'play_endless_runner') {
                 await sendGame(chatId, GAME2_SHORT_NAME);
+            }else if (callback_query.data === 'play_card_matcher') {
+                await sendGame(chatId, GAME3_SHORT_NAME);
             } else if (callback_query.data === 'help') {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
             } else {
@@ -82,12 +86,21 @@ async function sendMessage(chatId, text) {
             inlineKeyboard = [
                 [{ text: 'Play Fruit Catcher', callback_game: {} }],
                 [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
+                [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
                 [{ text: 'Help', callback_data: 'help' }]
             ];
         } else if (gameShortName === GAME2_SHORT_NAME) {
             inlineKeyboard = [
                 [{ text: 'Play Endless Runner', callback_game: {} }],
+                [{ text: 'Play Card Matcher', callback_data: 'play_card_matcher' }],
                 [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
+                [{ text: 'Help', callback_data: 'help' }]
+            ];
+        } else if (gameShortName === GAME3_SHORT_NAME) {
+            inlineKeyboard = [
+                [{ text: 'Play Card Matcher', callback_game: {} }],
+                [{ text: 'Play Fruit Catcher', callback_data: 'play_fruit_catcher' }],
+                [{ text: 'Play Endless Runner', callback_data: 'play_endless_runner' }],
                 [{ text: 'Help', callback_data: 'help' }]
             ];
         }
@@ -182,6 +195,8 @@ bot.on('callback_query', async (ctx) => {
                 await sendGame(chatId, GAME1_SHORT_NAME);
             } else if (data === 'play_endless_runner') {
                 await sendGame(chatId, GAME2_SHORT_NAME);
+            } else if (data === 'play_card_matcher') {
+                await sendGame(chatId, GAME3_SHORT_NAME);
             } else {
                 console.log('Callback query received:', data);
             }
@@ -190,7 +205,7 @@ bot.on('callback_query', async (ctx) => {
             console.log('Inline message callback query received:', ctx.callbackQuery.inline_message_id);
 
             try {
-                await ctx.answerCbQuery('', { url: ctx.callbackQuery.game_short_name === GAME1_SHORT_NAME ? Game1_URL : Game2_URL });
+                await ctx.answerCbQuery('', { url: ctx.callbackQuery.game_short_name === GAME1_SHORT_NAME ? Game1_URL : ctx.callbackQuery.game_short_name === GAME2_SHORT_NAME ? Game2_URL : Game3_URL });
                 await ctx.answerCbQuery('Action performed successfully!', { show_alert: true });
 
             } catch (error) {
@@ -204,7 +219,7 @@ bot.on('callback_query', async (ctx) => {
     }
 });
 
-const PORT = process.env.PORT || 3002 || 3000;
+const PORT = process.env.PORT || 3001 || 3000;
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
