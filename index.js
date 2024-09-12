@@ -3,6 +3,7 @@ const axios = require('axios');
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Telegraf } = require('telegraf');
+const fetch = require('node-fetch');
 
 const app = express();
 const TELEGRAM_BOT_TOKEN = '7286576213:AAFGoW-q__f4SYLSCnwk4e0CHJ0LP5QlFIs'; // Replace with your actual bot token
@@ -51,8 +52,6 @@ app.post('/webhook', async (req, res) => {
 
 async function sendMessage(chatId, text) {
     try {
-        const fetch = (await import('node-fetch')).default;
-
         const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -72,8 +71,6 @@ async function sendMessage(chatId, text) {
 
 async function sendGame(chatId) {
     try {
-        const fetch = (await import('node-fetch')).default;
-
         const payload = {
             chat_id: chatId,
             game_short_name: GAME_SHORT_NAME,
@@ -102,8 +99,6 @@ async function sendGame(chatId) {
 
 async function answerInlineQuery(queryId) {
     try {
-        const fetch = (await import('node-fetch')).default;
-
         const response = await fetch(`${TELEGRAM_API_URL}/answerInlineQuery`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -202,8 +197,6 @@ bot.launch();
 
 async function updateWebhook(url) {
     try {
-        const fetch = (await import('node-fetch')).default;
-
         const response = await fetch(`${TELEGRAM_API_URL}/setWebhook`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -219,7 +212,8 @@ async function updateWebhook(url) {
         console.error('Error setting webhook:', error);
     }
 }
+
 // Ping to keep the server alive
 setInterval(() => {
-    fetch(VERCEL_URL).catch((error) => console.error('Error pinging server:', error));
-}, 2 * 60 * 1000); // Ping every 5 minutes
+    fetch('https://fruitcrashergameserver.onrender.com').catch((error) => console.error('Error pinging server:', error));
+}, 2 * 60 * 1000); // Ping every 2 minutes
