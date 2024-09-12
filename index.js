@@ -1,5 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 const { Telegraf } = require('telegraf');
 
 const app = express();
@@ -14,7 +15,30 @@ const GAME3_SHORT_NAME = 'CardMatcher';
 
 app.use(bodyParser.json());  
 
-// Remove MongoDB-related code
+// MongoDB connection setup
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/telegram_game_bot';
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// Score schema and model
+const scoreSchema = new mongoose.Schema({
+    username: String,
+    score: Number
+}, { timestamps: true });
+
+const Score = mongoose.model('Score', scoreSchema);
+
+// Get top 10 scores
+async function getTopScores() {
+    return await Score.find().sort({ score: -1 }).limit(10);
+}
+
+// Save a player's score
+async function saveScore(username, score) {
+    const playerScore = new Score({ username, score });
+    await playerScore.save();
+}
 
 // Commands and webhooks
 app.get('/', (req, res) => {
@@ -34,6 +58,13 @@ app.post('/webhook', async (req, res) => {
                 await sendMessage(chatId, 'Welcome to the game! Type /play to start playing.');
             } else if (text === '/play') {
                 await sendGame(chatId, GAME1_SHORT_NAME); // Default to Game1
+            } else if (text === '/score') {
+                const topScores = await getTopScores();
+                let scoreMessage = 'Top 10 Scores:\n';
+                topScores.forEach((score, index) => {
+                    scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
+                });
+                await sendMessage(chatId, scoreMessage || 'No scores available.');
             } else {
                 await sendMessage(chatId, 'Unknown command. Type /start to begin.');
             }
@@ -145,6 +176,15 @@ bot.command('play', async (ctx) => {
     await sendGame(ctx.chat.id, GAME1_SHORT_NAME); // Default to Game1
 });
 
+bot.command('score', async (ctx) => {
+    const topScores = await getTopScores();
+    let scoreMessage = 'Top 10 Scores:\n';
+    topScores.forEach((score, index) => {
+        scoreMessage += `${index + 1}. ${score.username}: ${score.score}\n`;
+    });
+    await ctx.reply(scoreMessage || 'No scores available.');
+});
+
 bot.on('inline_query', async (ctx) => {
     const queryId = ctx.inlineQuery.id;
     const results = [
@@ -165,7 +205,7 @@ bot.on('inline_query', async (ctx) => {
 bot.on('callback_query', async (ctx) => {
     try {
         const data = ctx.callbackQuery.data;
-
+        
         if (ctx.callbackQuery.message) {
             const chatId = ctx.callbackQuery.message.chat.id;
 
@@ -188,15 +228,10 @@ bot.on('callback_query', async (ctx) => {
 
 bot.launch();
 
-// Keep-alive ping to prevent Render service timeout
-setInterval(() => {
-    console.log('Keeping server alive');
-    // This will ping your root URL to keep the server alive
-    fetch('https://serverbotcodeforfruit-catcher.onrender.com').catch((error) => console.error('Error pinging server:', error));
-}, 5 * 60 * 1000); // Ping every 5 minutes
-
 // Server setup
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+
