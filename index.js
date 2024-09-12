@@ -1,6 +1,5 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
 const { Telegraf } = require('telegraf');
 
 const app = express();
@@ -15,29 +14,15 @@ const GAME3_SHORT_NAME = 'CardMatcher';
 
 app.use(bodyParser.json());  
 
-// MongoDB connection setup
-const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/telegram_game_bot';
-mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
+// Removed MongoDB connection and schema
 
-// Score schema and model
-const scoreSchema = new mongoose.Schema({
-    username: String,
-    score: Number
-}, { timestamps: true });
-
-const Score = mongoose.model('Score', scoreSchema);
-
-// Get top 10 scores
+// Placeholder functions for scores (no database)
 async function getTopScores() {
-    return await Score.find().sort({ score: -1 }).limit(10);
+    return []; // Return empty list as placeholder
 }
 
-// Save a player's score
 async function saveScore(username, score) {
-    const playerScore = new Score({ username, score });
-    await playerScore.save();
+    console.log(`Saving score: ${username} - ${score}`); // Placeholder
 }
 
 // Commands and webhooks
@@ -227,11 +212,15 @@ bot.on('callback_query', async (ctx) => {
 });
 
 bot.launch();
+// Keep-alive ping to prevent Render service timeout
+setInterval(() => {
+    console.log('Keeping server alive');
+    // This will ping your root URL to keep the server alive
+    fetch('https://fruitcrashergameserver.onrender.com').catch((error) => console.error('Error pinging server:', error));
+}, 5 * 60 * 1000); // Ping every 5 minutes
 
 // Server setup
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
-
